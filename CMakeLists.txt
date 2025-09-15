@@ -7,9 +7,7 @@ endif()
 set(sdkVersion 2.0.0)
 set(toolchainVersion 13_2_Rel1)
 set(picotoolVersion 2.0.0)
-if (DEFINED PICO_SDK_PATH)
-# Already defined, e.g. -D flag
-elseif (DEFINED ENV{PICO_SDK_PATH})
+if (DEFINED ENV{PICO_SDK_PATH})
 # Defined in an environment variable
     set(PICO_SDK_PATH $ENV{PICO_SDK_PATH})
 else()
