@@ -89,10 +89,12 @@ void test_lock(void){
 int main (void)
 {
     stdio_init_all();
+    while(1){
     sleep_ms(5000); // Give time for TTY to attach.
     printf("Start tests\n");
     UNITY_BEGIN();
     RUN_TEST(test_lock);
     sleep_ms(5000);
-    return UNITY_END();
+    UNITY_END();
+    }
 }
