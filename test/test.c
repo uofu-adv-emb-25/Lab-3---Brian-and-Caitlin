@@ -1,26 +1,90 @@
+#include <FreeRTOS.h>
+#include <pico/multicore.h>
+#include <pico/cyw43_arch.h>
 #include <stdio.h>
 #include <pico/stdlib.h>
 #include <stdint.h>
 #include <unity.h>
 #include "unity_config.h"
+#include <semphr.h>
+#include <projdefs.h>
+
+
 
 void setUp(void) {}
 
 void tearDown(void) {}
 
-void test_variable_assignment()
-{
-    int x = 1;
-    TEST_ASSERT_TRUE_MESSAGE(x == 1,"Variable assignment failed.");
+int counter;
+int on;
+
+void thread_counter(){
+    counter = counter + 1;
+    printf("hello world from %s! Count %d\n", "thread", counter);
 }
 
-void test_multiplication(void)
-{
-    int x = 30;
-    int y = 6;
-    int z = x / y;
-    TEST_ASSERT_TRUE_MESSAGE(z == 5, "Multiplication of two integers returned incorrect value.");
+// void main_counter(){
+//     printf("hello world from %s! Count %d\n", "main", counter++);
+// }
+
+// void side_thread(void *params)
+// {
+// 	while (1) {
+//         vTaskDelay(100);
+//         if (semaphore != NULL){
+//             if(xSemaphoreTake(semaphore, portMAX_DELAY) == pdTRUE) {
+//                 thread_counter();
+//                 // counter = counter + 1;
+//                 // printf("hello world from %s! Count %d\n", "thread", counter);
+//             }
+//             else{
+//                 printf("semaphore was not pdTRUE");
+//             }
+//             xSemaphoreGive(semaphore);
+//         }
+//         else{
+//             printf("semaphore was not NULL");
+//         }
+// 	}
+// }
+
+// void main_thread(void *params)
+// {
+// 	while (1) {
+//         cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, on);
+//         vTaskDelay(100);
+//         xSemaphoreTake(semaphore, portMAX_DELAY); {
+// 		    main_counter();
+//             // printf("hello world from %s! Count %d\n", "main", counter++);
+//         }
+//         xSemaphoreGive(semaphore);
+//         on = !on;
+// 	}
+// }
+
+
+int test_semaphore(SemaphoreHandle_t semaphore, int counter){
+    if(xSemaphoreTake(semaphore, portMAX_DELAY) == pdTRUE) {
+        counter++;
+        printf("semaphore was pdTRUE");
+        xSemaphoreGive(semaphore);
+        return pdTRUE;
+    }
+    else{
+        printf("semaphore was not pdTRUE");
+        return pdFALSE;
+    }
 }
+
+void test_lock(void){
+    SemaphoreHandle_t semaphore;
+    int counter = 0;
+    int lock_result = test_semaphore(semaphore, counter);
+
+    TEST_ASSERT_EQUAL_INT(pdTRUE, lock_result);
+    TEST_ASSERT_EQUAL_INT(1, counter);  
+}
+
 
 int main (void)
 {
@@ -28,8 +92,7 @@ int main (void)
     sleep_ms(5000); // Give time for TTY to attach.
     printf("Start tests\n");
     UNITY_BEGIN();
-    RUN_TEST(test_variable_assignment);
-    RUN_TEST(test_multiplication);
+    RUN_TEST(test_lock);
     sleep_ms(5000);
     return UNITY_END();
 }
