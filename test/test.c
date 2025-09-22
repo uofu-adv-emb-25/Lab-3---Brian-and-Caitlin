@@ -62,8 +62,9 @@ void thread_counter(){
 // 	}
 // }
 
+int counter;
 
-int test_semaphore(SemaphoreHandle_t semaphore, int counter){
+int test_semaphore(SemaphoreHandle_t semaphore){
     if(xSemaphoreTake(semaphore, portMAX_DELAY) == pdTRUE) {
         counter++;
         printf("semaphore was pdTRUE");
@@ -77,9 +78,9 @@ int test_semaphore(SemaphoreHandle_t semaphore, int counter){
 }
 
 void test_lock(void){
-    SemaphoreHandle_t semaphore;
-    int counter = 0;
-    int lock_result = test_semaphore(semaphore, counter);
+    SemaphoreHandle_t semaphore = xSemaphoreCreateCounting(1,1);
+    counter = 0;
+    int lock_result = test_semaphore(semaphore);
 
     TEST_ASSERT_EQUAL_INT(pdTRUE, lock_result);
     TEST_ASSERT_EQUAL_INT(1, counter);  
