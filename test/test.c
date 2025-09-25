@@ -9,7 +9,8 @@
 #include <semphr.h>
 #include <projdefs.h>
 
-
+SemaphoreHandle_t semA;
+SemaphoreHandle_t semB;
 
 void setUp(void) {}
 
@@ -87,6 +88,66 @@ void test_lock(void){
 }
 
 
+void task_1(void *params) 
+{
+    xSemaphoreTake(semA, portMAX_DELAY);
+    vTaskDelay(500);
+    xSemaphoreTake(semB, portMAX_DELAY);
+    vTaskDelete(NULL);
+}
+
+void task_2(void *params) 
+{
+    xSemaphoreTake(semB, portMAX_DELAY);
+    vTaskDelay(500);
+    xSemaphoreTake(semA, portMAX_DELAY);
+    vTaskDelete(NULL);
+}
+
+void test_deadlock(void) 
+{
+    printf("Starting deadlock test.\n");
+    semA = xSemaphoreCreateMutex();
+    semB = xSemaphoreCreateMutex();
+
+    TEST_ASSERT_NOT_NULL(semA);
+    TEST_ASSERT_NOT_NULL(semB);
+
+    TaskHandle_t task1, task2;
+    TaskStatus_t status1, status2;
+
+    printf("Creating Tasks.\n");
+    xTaskCreate(task_1, "Task1", 256, NULL, tskIDLE_PRIORITY + 1, &task1);
+    xTaskCreate(task_2, "Task2", 256, NULL, tskIDLE_PRIORITY + 1, &task2);
+
+    printf("Tasks Created.\n");
+
+    vTaskDelay(10);  // Hangs up here
+                     // If you comment out the delay, it runs all the way
+                     // through, but will fail.
+
+    printf("Getting Task info.\n");
+    vTaskGetInfo(task1, &status1, pdTRUE, eInvalid);
+    vTaskGetInfo(task2, &status2, pdTRUE, eInvalid);
+    printf("Got Tasks info.\n");
+    eTaskState state1 = status1.eCurrentState;
+    eTaskState state2 = status2.eCurrentState;
+    printf("Second Tests.\n");
+
+    TEST_ASSERT_EQUAL_MESSAGE(eBlocked, state1, "Task 1 is not blocked");
+    TEST_ASSERT_EQUAL_MESSAGE(eBlocked, state2, "Task 2 is not blocked");
+
+    printf("Second Tests passed.\n");
+    vTaskSuspend(task1);
+    vTaskSuspend(task2);
+    vTaskDelete(task1);
+    vTaskDelete(task2);
+    vSemaphoreDelete(semA);
+    vSemaphoreDelete(semB);
+    printf("Deadlock Test completed.\n");
+}
+
+
 int main (void)
 {
     stdio_init_all();
@@ -95,6 +156,7 @@ int main (void)
     printf("Start tests\n");
     UNITY_BEGIN();
     RUN_TEST(test_lock);
+    RUN_TEST(test_deadlock);
     sleep_ms(5000);
     UNITY_END();
     }
