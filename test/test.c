@@ -9,12 +9,20 @@
 #include <semphr.h>
 #include <projdefs.h>
 
-SemaphoreHandle_t semA;
-SemaphoreHandle_t semB;
+#define MAIN_TASK_PRIORITY      ( tskIDLE_PRIORITY + 2UL )
+#define MAIN_TASK_STACK_SIZE    configMINIMAL_STACK_SIZE
+#define SIDE_TASK_PRIORITY      ( tskIDLE_PRIORITY + 1UL )
+#define SIDE_TASK_STACK_SIZE    configMINIMAL_STACK_SIZE
 
 void setUp(void) {}
 
 void tearDown(void) {}
+
+typedef struct deadlockArgs {
+    SemaphoreHandle_t A;
+    SemaphoreHandle_t B;
+    int counter;
+} deadlockArgs;
 
 int counter;
 int on;
@@ -88,76 +96,92 @@ void test_lock(void){
 }
 
 
-void task_1(void *params) 
+void taskA(void *arg)
 {
-    xSemaphoreTake(semA, portMAX_DELAY);
+    printf ("Task A.\n");
+    deadlockArgs *args = (deadlockArgs *) arg;
+
+    args->counter += xSemaphoreTake(args->A, portMAX_DELAY);
+
     vTaskDelay(500);
-    xSemaphoreTake(semB, portMAX_DELAY);
-    vTaskDelete(NULL);
+
+    args->counter += xSemaphoreTake(args->B, portMAX_DELAY);
+
+    xSemaphoreGive(args->B);
+    xSemaphoreGive(args->A);
+
+    vTaskSuspend(NULL);
 }
 
-void task_2(void *params) 
+void taskB(void *arg)
 {
-    xSemaphoreTake(semB, portMAX_DELAY);
-    vTaskDelay(500);
-    xSemaphoreTake(semA, portMAX_DELAY);
-    vTaskDelete(NULL);
+    printf ("Task B.\n");
+    deadlockArgs *args = (deadlockArgs *) arg;
+
+    args->counter += xSemaphoreTake(args->B, portMAX_DELAY);
+    args->counter += xSemaphoreTake(args->A, portMAX_DELAY);
+
+    xSemaphoreGive(args->A);
+    xSemaphoreGive(args->B);
+
+    vTaskSuspend(NULL);
 }
 
-void test_deadlock(void) 
+void test_deadlock(void)
 {
-    printf("Starting deadlock test.\n");
-    semA = xSemaphoreCreateMutex();
-    semB = xSemaphoreCreateMutex();
+    printf ("Starting deadlock test.\n");
+    SemaphoreHandle_t semaphore_A = xSemaphoreCreateMutex();
+    SemaphoreHandle_t semaphore_B = xSemaphoreCreateMutex();
 
-    TEST_ASSERT_NOT_NULL(semA);
-    TEST_ASSERT_NOT_NULL(semB);
+    deadlockArgs argsA = { semaphore_A, semaphore_B, 100 };
+    deadlockArgs argsB = { semaphore_A, semaphore_B, 200 };
 
-    TaskHandle_t task1, task2;
-    TaskStatus_t status1, status2;
+   
+    TaskHandle_t task_A, task_B;
 
-    printf("Creating Tasks.\n");
-    xTaskCreate(task_1, "Task1", 256, NULL, tskIDLE_PRIORITY + 1, &task1);
-    xTaskCreate(task_2, "Task2", 256, NULL, tskIDLE_PRIORITY + 1, &task2);
+    printf ("Creating Tasks.\n");
+    xTaskCreate(taskA, "taskA",
+                SIDE_TASK_STACK_SIZE, (void *)&argsA,
+                SIDE_TASK_PRIORITY, &task_A);
 
-    printf("Tasks Created.\n");
+     vTaskDelay(100); //Allow the deadlock
 
-    vTaskDelay(10);  // Hangs up here
-                     // If you comment out the delay, it runs all the way
-                     // through, but will fail.
+    xTaskCreate(taskB, "taskB",
+                SIDE_TASK_STACK_SIZE, (void *)&argsB,
+                SIDE_TASK_PRIORITY, &task_B);
 
-    printf("Getting Task info.\n");
-    vTaskGetInfo(task1, &status1, pdTRUE, eInvalid);
-    vTaskGetInfo(task2, &status2, pdTRUE, eInvalid);
-    printf("Got Tasks info.\n");
-    eTaskState state1 = status1.eCurrentState;
-    eTaskState state2 = status2.eCurrentState;
-    printf("Second Tests.\n");
+    vTaskDelay(200);
+    TEST_ASSERT_EQUAL(101, argsA.counter);
+    TEST_ASSERT_EQUAL(201, argsB.counter);
 
-    TEST_ASSERT_EQUAL_MESSAGE(eBlocked, state1, "Task 1 is not blocked");
-    TEST_ASSERT_EQUAL_MESSAGE(eBlocked, state2, "Task 2 is not blocked");
-
-    printf("Second Tests passed.\n");
-    vTaskSuspend(task1);
-    vTaskSuspend(task2);
-    vTaskDelete(task1);
-    vTaskDelete(task2);
-    vSemaphoreDelete(semA);
-    vSemaphoreDelete(semB);
-    printf("Deadlock Test completed.\n");
+    vTaskDelete(task_A);
+    vTaskDelete(task_B);
+    vSemaphoreDelete(semaphore_A);
+    vSemaphoreDelete(semaphore_B);
 }
 
-
-int main (void)
-{
-    stdio_init_all();
-    while(1){
-    sleep_ms(5000); // Give time for TTY to attach.
-    printf("Start tests\n");
-    UNITY_BEGIN();
-    RUN_TEST(test_lock);
-    RUN_TEST(test_deadlock);
-    sleep_ms(5000);
-    UNITY_END();
+void runner_task(void *params) {
+    for (;;)
+    {
+        printf("Start Tests,\n");
+        UNITY_BEGIN();
+        RUN_TEST(test_lock);
+        RUN_TEST(test_deadlock);
+        UNITY_END();
+        vTaskDelay(1000);
     }
+    
+}
+
+int main(void) {
+    stdio_init_all();
+    sleep_ms(5000);
+
+    // Create runner task
+    xTaskCreate(runner_task, "RunnerTask", MAIN_TASK_STACK_SIZE, NULL,
+                MAIN_TASK_PRIORITY, NULL);
+
+    vTaskStartScheduler();
+
+    return 0;
 }
