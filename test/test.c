@@ -24,6 +24,11 @@ typedef struct deadlockArgs {
     int counter;
 } deadlockArgs;
 
+typedef struct orphanArgs {
+    SemaphoreHandle_t Orph;
+    int counter;
+} orphanArgs;
+
 int counter;
 int on;
 
@@ -98,7 +103,7 @@ void test_lock(void){
 
 void taskA(void *arg)
 {
-    printf ("Task A.\n");
+    //printf ("Task A.\n");
     deadlockArgs *args = (deadlockArgs *) arg;
 
     args->counter += xSemaphoreTake(args->A, portMAX_DELAY);
@@ -115,7 +120,7 @@ void taskA(void *arg)
 
 void taskB(void *arg)
 {
-    printf ("Task B.\n");
+    //printf ("Task B.\n");
     deadlockArgs *args = (deadlockArgs *) arg;
 
     args->counter += xSemaphoreTake(args->B, portMAX_DELAY);
@@ -139,7 +144,7 @@ void test_deadlock(void)
    
     TaskHandle_t task_A, task_B;
 
-    printf ("Creating Tasks.\n");
+    //printf ("Creating Tasks.\n");
     xTaskCreate(taskA, "taskA",
                 SIDE_TASK_STACK_SIZE, (void *)&argsA,
                 SIDE_TASK_PRIORITY, &task_A);
@@ -160,20 +165,89 @@ void test_deadlock(void)
     vSemaphoreDelete(semaphore_B);
 }
 
-void runner_task(void *params) {
+void orphaned_lock(void *arg)
+{
+    orphanArgs *args = (orphanArgs *) arg;
+    while (1) {
+        xSemaphoreTake(args->Orph, portMAX_DELAY);
+        args->counter++;
+        if (args->counter % 2) {
+            continue;
+        }
+        xSemaphoreGive(args->Orph);
+    }
+}
+
+void orphaned_lock_fix(void *arg)
+{
+    orphanArgs *args = (orphanArgs *) arg;
+    while (1) {
+        xSemaphoreTake(args->Orph, portMAX_DELAY);
+        args->counter++;
+        if (args->counter % 2) {
+            xSemaphoreGive(args->Orph);
+            continue;
+        }
+        xSemaphoreGive(args->Orph);
+    }
+}
+
+void test_orphaned_lock(void)
+{
+    printf ("Starting orphaned test.\n");
+    SemaphoreHandle_t orphSem = xSemaphoreCreateMutex();
+    orphanArgs orphan = {orphSem, 0};
+
+    TaskHandle_t orphan_task;
+
+    xTaskCreate(orphaned_lock, "orphan_task",
+                SIDE_TASK_STACK_SIZE, (void *)&orphan,
+                SIDE_TASK_PRIORITY, &orphan_task);
+
+    vTaskDelay(500);
+    TEST_ASSERT_EQUAL(1, orphan.counter);
+    vTaskDelete(orphan_task);
+    vSemaphoreDelete(orphSem);
+}
+
+void test_orphaned_lock_fix(void)
+{
+    printf ("Starting fixed orphaned test.\n");
+    SemaphoreHandle_t fixorphSem = xSemaphoreCreateMutex();
+    orphanArgs orphan_fix = {fixorphSem, 0};
+
+    TaskHandle_t orphan_task_fix;
+
+    xTaskCreate(orphaned_lock_fix, "orphan_task_fix",
+                SIDE_TASK_STACK_SIZE, (void *)&orphan_fix,
+                SIDE_TASK_PRIORITY, &orphan_task_fix);
+
+    vTaskDelay(500);
+    TEST_ASSERT_GREATER_OR_EQUAL(1, orphan_fix.counter);
+    TEST_ASSERT_GREATER_OR_EQUAL(10, orphan_fix.counter);
+    TEST_ASSERT_GREATER_OR_EQUAL(100, orphan_fix.counter);
+    vTaskDelete(orphan_task_fix);
+    vSemaphoreDelete(fixorphSem);
+}
+
+void runner_task(void *params)
+{
     for (;;)
     {
         printf("Start Tests,\n");
         UNITY_BEGIN();
         RUN_TEST(test_lock);
         RUN_TEST(test_deadlock);
+        RUN_TEST(test_orphaned_lock);
+        RUN_TEST(test_orphaned_lock_fix);
         UNITY_END();
         vTaskDelay(1000);
     }
     
 }
 
-int main(void) {
+int main(void)
+{
     stdio_init_all();
     sleep_ms(5000);
 
