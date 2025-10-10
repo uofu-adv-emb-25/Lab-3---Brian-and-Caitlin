@@ -37,45 +37,6 @@ void thread_counter(){
     printf("hello world from %s! Count %d\n", "thread", counter);
 }
 
-// void main_counter(){
-//     printf("hello world from %s! Count %d\n", "main", counter++);
-// }
-
-// void side_thread(void *params)
-// {
-// 	while (1) {
-//         vTaskDelay(100);
-//         if (semaphore != NULL){
-//             if(xSemaphoreTake(semaphore, portMAX_DELAY) == pdTRUE) {
-//                 thread_counter();
-//                 // counter = counter + 1;
-//                 // printf("hello world from %s! Count %d\n", "thread", counter);
-//             }
-//             else{
-//                 printf("semaphore was not pdTRUE");
-//             }
-//             xSemaphoreGive(semaphore);
-//         }
-//         else{
-//             printf("semaphore was not NULL");
-//         }
-// 	}
-// }
-
-// void main_thread(void *params)
-// {
-// 	while (1) {
-//         cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, on);
-//         vTaskDelay(100);
-//         xSemaphoreTake(semaphore, portMAX_DELAY); {
-// 		    main_counter();
-//             // printf("hello world from %s! Count %d\n", "main", counter++);
-//         }
-//         xSemaphoreGive(semaphore);
-//         on = !on;
-// 	}
-// }
-
 int counter;
 
 int test_semaphore(SemaphoreHandle_t semaphore){
