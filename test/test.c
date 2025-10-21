@@ -18,12 +18,14 @@ void setUp(void) {}
 
 void tearDown(void) {}
 
+//Structure to hold semaphores and counter - simulate deadlock between two tasks
 typedef struct deadlockArgs {
     SemaphoreHandle_t A;
     SemaphoreHandle_t B;
     int counter;
 } deadlockArgs;
 
+//Structure to hold semaphore and counter - used for orphaned lock test
 typedef struct orphanArgs {
     SemaphoreHandle_t Orph;
     int counter;
@@ -32,6 +34,7 @@ typedef struct orphanArgs {
 int counter;
 int on;
 
+//Increments global counter and print message to keep track
 void thread_counter(){
     counter = counter + 1;
     printf("hello world from %s! Count %d\n", "thread", counter);
@@ -39,6 +42,7 @@ void thread_counter(){
 
 int counter;
 
+//Test to see if the semaphore can be taken and given and return true is it was taken
 int test_semaphore(SemaphoreHandle_t semaphore){
     if(xSemaphoreTake(semaphore, portMAX_DELAY) == pdTRUE) {
         counter++;
@@ -52,6 +56,7 @@ int test_semaphore(SemaphoreHandle_t semaphore){
     }
 }
 
+//Unit test to test basic semaphore lock and unlocking functionality
 void test_lock(void){
     SemaphoreHandle_t semaphore = xSemaphoreCreateCounting(1,1);
     counter = 0;
@@ -61,7 +66,7 @@ void test_lock(void){
     TEST_ASSERT_EQUAL_INT(1, counter);  
 }
 
-
+//Take semaphore A first then semaphore B
 void taskA(void *arg)
 {
     //printf ("Task A.\n");
@@ -69,7 +74,7 @@ void taskA(void *arg)
 
     args->counter += xSemaphoreTake(args->A, portMAX_DELAY);
 
-    vTaskDelay(500);
+    vTaskDelay(500); //Give time for semaphore to take
 
     args->counter += xSemaphoreTake(args->B, portMAX_DELAY);
 
@@ -79,6 +84,7 @@ void taskA(void *arg)
     vTaskSuspend(NULL);
 }
 
+//Take semaphore B then semaphore A
 void taskB(void *arg)
 {
     //printf ("Task B.\n");
@@ -93,6 +99,7 @@ void taskB(void *arg)
     vTaskSuspend(NULL);
 }
 
+//Test to deadlock between the two tasks (task A and task B)
 void test_deadlock(void)
 {
     printf ("Starting deadlock test.\n");
@@ -126,6 +133,7 @@ void test_deadlock(void)
     vSemaphoreDelete(semaphore_B);
 }
 
+//Test that takes a semaphore but sometime never relases it causing a bug
 void orphaned_lock(void *arg)
 {
     orphanArgs *args = (orphanArgs *) arg;
@@ -139,6 +147,7 @@ void orphaned_lock(void *arg)
     }
 }
 
+//Orphaned lock that always works and lrelesases the semaphore properly
 void orphaned_lock_fix(void *arg)
 {
     orphanArgs *args = (orphanArgs *) arg;
@@ -153,6 +162,7 @@ void orphaned_lock_fix(void *arg)
     }
 }
 
+//Test to identify the orphaned lock
 void test_orphaned_lock(void)
 {
     printf ("Starting orphaned test.\n");
@@ -171,6 +181,7 @@ void test_orphaned_lock(void)
     vSemaphoreDelete(orphSem);
 }
 
+//Test that makes sure orphaned lock works continuously
 void test_orphaned_lock_fix(void)
 {
     printf ("Starting fixed orphaned test.\n");

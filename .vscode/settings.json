@@ -1,0 +1,7 @@
+{
+    "serialMonitor.port": "COM9",
+    "serialMonitor.baudRate": 115200,
+    "files.associations": {
+        "freertosconfig_examples_common.h": "c"
+    }
+}
